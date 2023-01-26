@@ -4,3 +4,7 @@ __pycache__/
 
 # data directory
 data
+
+# building files by PyInstaller
+build
+dist
