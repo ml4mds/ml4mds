@@ -2,110 +2,138 @@
 
 import streamlit as st
 import numpy as np
+import pandas as pd
 from sklearn import linear_model
+from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 
-from loader import TrainStreams
-from loader import WeatherStreams
-from algorithms.fuzzm.model import MultiStreamRetrainer
+from utils.dataloader import loaddata
+from utils.functions import stream_selector
 from algorithms.fuzzm.model import MultiStreamHandler
 
-st.set_page_config(layout="wide")
+# page config
+st.set_page_config(page_title="Machine Learning for Multiple Data Streams",
+                   layout="wide")
 
-# sidebar:
-datasets = {
-        "None": "",
-        "Train": "The Train dataset records train dwelling information"
-        "There are eight data streams in the data set."
-        "Each data stream is corresponding to a train station."
-        "The task is to predict the load change of carriages"
-        "during the train dwelling time,"
-        "so that staff can organize the crowd and avoid congestion",
-        "Weather": "The Weather data set records weather data"
-        "from ten weather stations near Beijing China."
-        "There are ten data streams in the data set."
-        "Each data stream is corresponding to a weather station."
-        "The weather data includes temperature, pressure, humidity, etc.."
-        "The task is to predict the accumulated rainfall in one hour."
-        }
+###############################
+#            title            #
+###############################
+st.title("Machine Learning for :red[Multiple] Data Streams")
+subtitle, buttons = st.columns(2, gap="large")
+subtitle.caption("Handling machine learning problems for multiple data streams"
+                 " with unpredicted concept drifts.")
+button_placeholders = buttons.columns(9)
+button_run = button_placeholders[-2].button("Run", type="primary")
+button_reset = button_placeholders[-1].button("Reset", type="primary")
+if button_reset:
+    button_run = False
+if button_run:
+    button_reset = False
+st.divider()
 
-
-@st.cache
-def loaddata(dataset):
-    """Load data."""
-    if dataset == "Train":
-        ss = TrainStreams()
+########################################
+#            before running            #
+########################################
+placeholder = st.empty()
+with placeholder.container():
+    # ========== datasets & algorithms ==========
+    col_data, col_algo = st.columns(2, gap="large")
+    # datasets
+    col_data.header("Datasets")
+    col_data1, col_data2 = col_data.columns(2)
+    dataset = col_data1.selectbox("Select a dataset or upload your own dataset:",
+                                   ("Upload your own dataset", "Weather", "Train", "Sensor"))
+    streams_selection = col_data1.text_input("Select all or some of data streams "
+                                         "(e.g.: 'all', '1, 3', '1-3' or '1-3,5')",
+                                         "all")
+    if dataset == "Upload your own dataset":
+        col_data2.file_uploader("CSV support only", type="csv")
     elif dataset == "Weather":
-        ss = WeatherStreams()
-    else:
-        st.write("Error: Please select a correct dataset!")
-    return ss
+        df = pd.read_csv('data/multistream.weather.csv')
+        col_data2.dataframe(df.head())
+        del df
+    elif dataset == "Train":
+        df = pd.read_csv('data/multistream.central.csv')
+        col_data2.dataframe(df.head())
+        del df
+    elif dataset == "Sensor":
+        df = pd.read_csv('data/multistream.sensor.csv')
+        col_data2.dataframe(df.head())
+        del df
+    # algorithms
+    col_algo.header("Algorithms")
+    col_algo1, col_algo2 = col_algo.columns(2)
+    method = col_algo1.selectbox("Select algorithms:",
+                                 ("None", "FuzzMDD + FuzzMDA"))
+    # ========== other parameters ==========
+    other_paras = st.columns(5, gap="large")
+    training_size = other_paras[0].number_input("Training set size (>0): ", value=100)
+    batch_size = other_paras[1].number_input("Batch size (>0): ", value=100)
+    eval_method = other_paras[2].selectbox("Evaluate the accuray via:",
+                                 ("Mean squared error (MSE)",
+                                 "Mean absolute error (MAE)",
+                                 "Root mean squared error (RMSE)"))
 
-
-st.sidebar.header("Datasets")
-dataset = st.sidebar.selectbox("Select a Dataset:",
-                               ("None", "Weather"))
-st.sidebar.write(datasets[dataset])
-
-st.sidebar.header("Algorithms")
-st.sidebar.write("Select Algorithms:")
-method1 = st.sidebar.checkbox("FuzzMDD + Re-training")
-method2 = st.sidebar.checkbox("FuzzMDD + FuzzMDA")
-
-st.sidebar.header("Streams setting")
-training_size = st.sidebar.number_input("training set size: ", value=100)
-batch_size = st.sidebar.number_input("batch size: ", value=100)
-
-if st.sidebar.button("Run", type="primary"):
-    ss = loaddata(dataset)
-    n, m, d = ss.x.shape
-    x_train, y_train = ss[:training_size]
-    result = np.zeros((2, m, n))
-    # ========== initialize models ==========
-    # FuzzMDD + Re-training
-    retrain = None
-    if method1:
-        retrain = MultiStreamRetrainer(m, linear_model.Ridge(alpha=1))
-        retrain.fit(x_train, y_train)
-    # FuzzMDD + FuzzMDA
-    fmda = None
-    if method2:
-        fmda = MultiStreamHandler(m, linear_model.Ridge(alpha=1))
-        fmda.fit(x_train, y_train)
-
-    # ========== simulation starts ==========
-    bar = st.progress(0)
-    placeholder = st.empty()
-    N = (n - training_size) // batch_size
-    for i in range(N):
-        i1 = training_size + i * batch_size
-        i2 = i1 + batch_size
-        x, y = ss[i1:i2]
-        # retrain
-        # FuzzMDD + Re-training
-        if method1:
-            result[0, :, i], dlist1 = retrain.score(x, y)
+#######################################
+#            after running            #
+#######################################
+if button_run:
+    with placeholder.container():
+        # ========== loading data ==========
+        ss = loaddata(dataset)
+        n, m, d = ss.x.shape
+        # ========== initialize models ==========
+        x_train, y_train = ss[:training_size]
+        pca = PCA(n_components=1)
+        pca.fit(np.hstack((x_train.reshape((-1, d)),
+                           y_train.reshape((-1, 1)))))
         # FuzzMDD + FuzzMDA
-        if method2:
-            result[1, :, i], dlist2 = fmda.score(x, y)
+        fmda = None
+        if method == "FuzzMDD + FuzzMDA":
+            fmda = MultiStreamHandler(m, linear_model.Ridge(alpha=1))
+            fmda.fit(x_train, y_train)
+        # ========== simulation starts ==========
+        bar = st.progress(0)
+        N = (n - training_size) // batch_size
+        vis_data = np.zeros((m, N))
+        results = np.zeros((m, N))
+        fig_plotting = st.empty()
+        for i in range(N):
+            i1 = training_size + i * batch_size
+            i2 = i1 + batch_size
+            x, y = ss[i1:i2]
+            # FuzzMDD + FuzzMDA
+            if method == "FuzzMDD + FuzzMDA":
+                results[:, i], dlist1 = fmda.score(x, y)
 
-        bar.progress(i)
-        with placeholder.container():
+            bar.progress((i+1)/N)
             fig = plt.figure()
-            for j in range(m):
-                ax = fig.add_subplot(m//3+1, 3, j+1)
-                ax.set_title("Stream #{}".format(j+1))
-                ax.set_xlabel("Batch #")
-                ax.set_ylabel("MSE")
-                if method1:
-                    ax.plot(result[0, j, :i+1], label="FuzzMDD + Retraining")
-                    if j in dlist1:
-                        ax.plot([i], result[0, j, i], "r*")
-                if method2:
-                    ax.plot(result[1, j, :i+1], label="FuzzMDD + FuzzMDA")
-                    if j in dlist2:
-                        ax.plot([i], result[1, j, i], "r*")
-                ax.legend()
-            fig.subplots_adjust(top=m//3+1, bottom=0,
-                                left=0, right=3, hspace=0.3)
-            st.pyplot(fig)
+            if streams_selection == "all":
+                streams = list(range(m))
+            else:
+                streams = stream_selector(streams_selection)
+            for j, stream_j in enumerate(streams):
+                temp = pca.transform(np.hstack((x[:, stream_j, :],
+                                                y[:, stream_j].reshape(-1, 1))))
+                temp = temp.reshape(-1)
+                vis_data[stream_j, i] = temp.mean()
+                ax1 = fig.add_subplot(len(streams), 2, 2*j+1)
+                ax1.set_title("Visualization on Stream #{}".format(stream_j+1))
+                ax1.set_xlabel("Batch #")
+                ax1.set_ylabel("Data")
+                ax1.plot(vis_data[stream_j, :i+1], "ro-")
+
+                ax2 = fig.add_subplot(len(streams), 2, 2*j+2)
+                ax2.set_title("Accuracy on Stream #{}".format(stream_j+1))
+                ax2.set_xlabel("Batch #")
+                ax2.set_ylabel(eval_method)
+                if method == "FuzzMDD + FuzzMDA":
+                    ax2.plot(results[stream_j, :i+1], label="FuzzMDD + FuzzMDA")
+                    if stream_j in dlist1:
+                        ax2.text(0.5, 0.5, "Drift detected!", color="red",
+                                 fontweight="bold")
+                ax2.legend()
+            fig.subplots_adjust(top=len(streams), bottom=0,
+                                left=0, right=2, hspace=0.3)
+            if i >= 2:
+                fig_plotting.pyplot(fig)

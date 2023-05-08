@@ -4,10 +4,11 @@
 Data loaders, all datasets are indexed in size of (t, m, d),
 where t is the timestamp of data,
 m is the number of data streams,
-and d is the dimension of the feature
+and d is the dimension of the feature.
 """
 import numpy as np
 import pandas as pd
+import streamlit as st
 
 
 class TrainStreams:
@@ -87,6 +88,20 @@ class SensorStreams:
     def __getitem__(self, key):
         """Methods for emulating a container type."""
         return self.x[key], self.y[key]
+
+
+@st.cache_data
+def loaddata(dataset):
+    """Load data."""
+    if dataset == "Train":
+        ss = TrainStreams()
+    elif dataset == "Weather":
+        ss = WeatherStreams()
+    elif dataset == "Sensor":
+        ss = SensorStreams()
+    else:
+        st.write("Error: Please select a correct dataset!")
+    return ss
 
 
 if __name__ == "__main__":
