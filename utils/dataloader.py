@@ -93,15 +93,43 @@ class SensorStreams:
 @st.cache_data
 def loaddata(dataset):
     """Load data."""
+    ss = None
     if dataset == "Train":
         ss = TrainStreams()
     elif dataset == "Weather":
         ss = WeatherStreams()
     elif dataset == "Sensor":
         ss = SensorStreams()
-    else:
-        st.write("Error: Please select a correct dataset!")
     return ss
+
+
+@st.cache_data
+def load_example(dataset):
+    """Load examples."""
+    examples = None
+    if dataset == "Train":
+        examples = pd.read_csv('data/example_train.csv')
+    elif dataset == "Weather":
+        examples = pd.read_csv('data/example_weather.csv')
+    elif dataset == "Sensor":
+        examples = pd.read_csv('data/example_sensor.csv')
+    return examples
+
+
+@st.cache_data
+def load_visdata(dataset):
+    """Load the data after dimension reuction."""
+    vals = None
+    if dataset == "Train":
+        with open('data/visualization_train.npy', 'rb') as f:
+            vals = np.load(f)
+    elif dataset == "Weather":
+        with open('data/visualization_weather.npy', 'rb') as f:
+            vals = np.load(f)
+    elif dataset == "Sensor":
+        with open('data/visualization_sensor.npy', 'rb') as f:
+            vals = np.load(f)
+    return vals
 
 
 if __name__ == "__main__":

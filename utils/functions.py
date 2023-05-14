@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 """Functions used by the application."""
 
 
 def stream_selector(tokens):
+    """Select some of all data streams."""
     result = []
     tokens = tokens.split(",")
     for token in tokens:

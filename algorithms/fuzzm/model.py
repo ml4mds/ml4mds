@@ -104,17 +104,17 @@ class StreamHandler:
         return loss.mean(), drift
 
 
-class MultiStreamRetrainer:
+class FuzzmddMultiStreamHandler:
     """Handle multiple data streams by re-training in dynamic environment."""
 
     def __init__(self, m, base_learner, random_state=None):
-        """__init__ for MultiStreamHandler."""
+        """__init__ for FuzzmddMultiStreamHandler."""
         self.handlers = [StreamHandler(base_learner) for _ in range(m)]
 
     def fit(self, x, y):
         """Fit method."""
+        _, m, _ = x.shape
         for i, hdlr in enumerate(self.handlers):
-            _, m, _ = x.shape
             hdlr.fit(x[:, i, :], y[:, i],
                      x[:, (i+1) % m, :], y[:, (i+1) % m])
 
@@ -134,17 +134,17 @@ class MultiStreamRetrainer:
         return result, dlist
 
 
-class MultiStreamHandler:
+class FuzzmdaMultiStreamHandler:
     """Handle multiple data streams in dynamic environment."""
 
     def __init__(self, m, base_learner, random_state=None):
-        """__init__ for MultiStreamHandler."""
+        """__init__ for FuzzmdaMultiStreamHandler."""
         self.handlers = [StreamHandler(base_learner) for _ in range(m)]
 
     def fit(self, x, y):
         """Fit method."""
+        _, m, _ = x.shape
         for i, hdlr in enumerate(self.handlers):
-            _, m, _ = x.shape
             hdlr.fit(x[:, i, :], y[:, i],
                      x[:, (i+1) % m, :], y[:, (i+1) % m])
 
