@@ -2,9 +2,6 @@
 __pycache__/
 *.py[cdo]
 
-# data directory
-data
-
-# building files by PyInstaller
-build
-dist
+# datasets
+*.csv
+*.npy

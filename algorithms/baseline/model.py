@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 """Baseline.
 
-Training at first and do nothing."""
+Training at first and do nothing.
+"""
+
+from copy import copy
+
 import numpy as np
 
 
 class BaselineStreamHandler:
-    """
-    Handle a stream in dynamic environment.
+    """Handle a stream in dynamic environment.
 
     Train a model at first and do nothing.
     """
@@ -32,7 +35,8 @@ class BaselineMultiStreamHandler:
 
     def __init__(self, m, base_learner):
         """__init__ for BaselineMultiStreamHandler."""
-        self.handlers = [BaselineStreamHandler(base_learner) for _ in range(m)]
+        self.handlers = [BaselineStreamHandler(copy(base_learner))
+                         for _ in range(m)]
 
     def fit(self, x, y):
         """Fit method."""

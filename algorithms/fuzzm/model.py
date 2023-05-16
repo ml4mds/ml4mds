@@ -1,24 +1,24 @@
 # -*- coding: utf-8 -*-
-"""Stream handlers.
+"""FuzzMDD + FuzzMDA Stream handlers.
 
-Stream handlers.
+FuzzMDD is used to detect concept drift.
+FuzzMDA uses data from other data streams to re-train a new model.
 """
+
+from copy import copy
+
 import numpy as np
 from scipy.stats import mannwhitneyu
 import torch
 import torch.nn as nn
 
 
-# rank sum test
-def rank_sum_test(memb1, memb2, alpha=0.05):
+def rank_sum_test(x1, x2, alpha=0.05):
     """Rank sum test."""
-    _, p = mannwhitneyu(memb1, memb2)
-    if p < alpha:
-        return True
-    return False
+    _, p = mannwhitneyu(x1, x2)
+    return p < alpha
 
 
-# membership functions
 class SMF:
     """sigmoid membership function."""
 
@@ -35,7 +35,7 @@ class SMF:
         x = x.reshape((-1, 1))
         return self.func(x)
 
-    def fit(self, x1, x2, epochs=5):
+    def fit(self, x1, x2, epochs):
         """Estimate the parameters of membership.
 
         x1, x2: ndarray of size (n, d)
@@ -53,22 +53,16 @@ class SMF:
         Y = Y[shuff]
 
         for _ in range(epochs):
-            for i in range((n1+n2)//100):
-                i1 = i * 100
-                i2 = i1 + 100
-                xi = X[i1:i2]
-                yi = Y[i1:i2]
-                yhat = self.membership(xi).reshape(-1)
-                loss = nn.functional.mse_loss(yhat, yi)
+            yhat = self.membership(X).reshape(-1)
+            loss = nn.functional.mse_loss(yhat, Y)
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
 
 class StreamHandler:
-    """
-    Handle a stream in dynamic environment.
+    """Handle a stream in dynamic environment.
 
     Stream handler, each stream has a learner and a membership fucntion
     """
@@ -77,7 +71,7 @@ class StreamHandler:
         """__init__ for StreamHandler."""
         self.learner = base_learner
         self.mf = SMF()
-        self.hist_memb = None
+        self.hist_membership = None
 
     def fit(self, x, y, x1, y1, epochs=100, sample_weight=None):
         """Fit method."""
@@ -86,10 +80,10 @@ class StreamHandler:
         loss = (yhat - y) ** 2
         yhat1 = self.learner.predict(x1)
         loss1 = (yhat1 - y1) ** 2
-        self.mf.fit(loss, loss1, epochs=epochs)
-        self.hist_memb = self.mf.membership(loss).detach().cpu().numpy()
+        self.mf.fit(loss, loss1, epochs)
+        self.hist_membership = self.mf.membership(loss).detach().cpu().numpy()
 
-    def score(self, x, y, return_memb=False):
+    def score(self, x, y, return_membership=False):
         """Score method.
 
         x: ndarray of size (n, d)
@@ -97,19 +91,24 @@ class StreamHandler:
         """
         yhat = self.learner.predict(x)
         loss = (yhat - y) ** 2
-        memb = self.mf.membership(loss).detach().cpu().numpy()
-        if return_memb:
-            return memb.mean()
-        drift = rank_sum_test(self.hist_memb, memb, 0.001)
+        membership = self.mf.membership(loss).detach().cpu().numpy()
+        if return_membership:
+            return membership.mean()
+        drift = rank_sum_test(self.hist_membership, membership, 0.001)
         return loss.mean(), drift
 
 
 class FuzzmddMultiStreamHandler:
-    """Handle multiple data streams by re-training in dynamic environment."""
+    """Handle multiple data streams in dynamic environment.
+
+    Use FuzzMDD to detect whether concept drift occurs.
+    The adaptation strategy is re-train without data from other streams.
+    """
 
     def __init__(self, m, base_learner, random_state=None):
         """__init__ for FuzzmddMultiStreamHandler."""
-        self.handlers = [StreamHandler(base_learner) for _ in range(m)]
+        self.handlers = [StreamHandler(copy(base_learner))
+                         for _ in range(m)]
 
     def fit(self, x, y):
         """Fit method."""
@@ -135,11 +134,17 @@ class FuzzmddMultiStreamHandler:
 
 
 class FuzzmdaMultiStreamHandler:
-    """Handle multiple data streams in dynamic environment."""
+    """Handle multiple data streams in dynamic environment.
+
+    Use FuzzMDD to detect whether concept drift occurs.
+    The adaptation strategy is re-train with data from other streams.
+    The membership is used as training weight.
+    """
 
     def __init__(self, m, base_learner, random_state=None):
         """__init__ for FuzzmdaMultiStreamHandler."""
-        self.handlers = [StreamHandler(base_learner) for _ in range(m)]
+        self.handlers = [StreamHandler(copy(base_learner))
+                         for _ in range(m)]
 
     def fit(self, x, y):
         """Fit method."""
@@ -171,18 +176,9 @@ class FuzzmdaMultiStreamHandler:
                     break
                 j1 = ji * n
                 j2 = j1 + n
-                weight[j1:j2] *= self.handlers[j].score(x[:, i, :],
-                                                        y[:, i],
-                                                        True)
-            self.handlers[i].fit(xx, yy, x[:, (i+1) % m, :], y[:, (i+1) % m],
+                weight[j1:j2] *= \
+                    self.handlers[j].score(x[:, i, :], y[:, i], True)
+            self.handlers[i].fit(xx, yy,
+                                 x[:, (i+1) % m, :], y[:, (i+1) % m],
                                  sample_weight=weight)
         return result, dlist
-
-
-if __name__ == "__main__":
-    mf = SMF()
-    x1 = np.random.normal(1, 1, 1000)
-    x2 = np.random.normal(2, 1, 1000)
-    mf.fit(x1, x2, 10000)
-    print(mf.membership(x1).reshape(-1))
-    print(mf.membership(x2).reshape(-1))
