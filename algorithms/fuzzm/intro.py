@@ -28,4 +28,4 @@ def fuzzm_intro(col_algo1, col_algo2):
     training_size = col_algo2.number_input('Training set size (>0):',
                                            value=100)
     batch_size = col_algo2.number_input('Chunk size (>0):', value=100)
-    return training_size, batch_size, base_learner
+    return training_size, batch_size, base_learner, True

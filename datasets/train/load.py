@@ -13,7 +13,7 @@ class TrainStreams:
 
     def __init__(self):
         """__init__ for TrainStreams."""
-        df = pd.read_csv('datasets/train/train.csv')
+        df = pd.read_csv('datasets/train/data.csv')
         self.x = np.zeros((373327, 8, 11))
         self.y = np.zeros((373327, 8))
         for i in range(8):

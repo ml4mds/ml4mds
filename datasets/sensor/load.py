@@ -13,7 +13,7 @@ class SensorStreams:
 
     def __init__(self):
         """__init__ for SensorStreams."""
-        df = pd.read_csv('datasets/sensor/sensor.csv')
+        df = pd.read_csv('datasets/sensor/data.csv')
         self.x = np.zeros((20844, 6, 3))
         self.y = np.zeros((20844, 6))
         for i in range(6):

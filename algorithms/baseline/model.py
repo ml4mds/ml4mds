@@ -23,11 +23,10 @@ class BaselineStreamHandler:
         """Fit method."""
         self.learner.fit(x, y)
 
-    def score(self, x, y):
+    def predict(self, x):
         """Score method."""
         yhat = self.learner.predict(x)
-        loss = (yhat - y) ** 2
-        return loss.mean()
+        return yhat
 
 
 class BaselineMultiStreamHandler:
@@ -43,10 +42,10 @@ class BaselineMultiStreamHandler:
         for i, hdlr in enumerate(self.handlers):
             hdlr.fit(x[:, i, :], y[:, i])
 
-    def score(self, x, y):
-        """Score method."""
-        _, m, _ = x.shape
-        result = np.zeros(m)
+    def predict(self, x):
+        """Predict method."""
+        n, m, _ = x.shape
+        result = np.zeros(n, m)
         for i in range(m):
-            result[i] = self.handlers[i].score(x[:, i, :], y[:, i])
+            result[:, i] = self.handlers[i].predict(x[:, i, :])
         return result

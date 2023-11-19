@@ -10,6 +10,13 @@ from .weather.load import WeatherStreams
 from .sensor.load import SensorStreams
 
 
+# TODO: load your own data
+@st.cache_data
+def load_cos_data():
+    """Load customized data."""
+    pass
+
+
 @st.cache_data
 def load_data(dataset):
     """Load data."""
@@ -32,13 +39,9 @@ def load_example(dataset):
 
 
 @st.cache_data
-def load_visdata(dataset, plot3d=False):
+def load_visdata(dataset):
     """Load the data after dimension reuction."""
-    if plot3d:
-        suffix = '2d.npy'
-    else:
-        suffix = '.npy'
-    file_path = 'datasets/' + dataset.lower() + '/visualization' + suffix
+    file_path = 'datasets/' + dataset.lower() + '/visualization.npy'
     with open(file_path, 'rb') as f:
         vals = np.load(f)
     return vals

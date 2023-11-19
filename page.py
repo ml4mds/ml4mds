@@ -15,6 +15,8 @@ from algorithms.baseline.model import BaselineMultiStreamHandler
 from algorithms.fuzzm.intro import fuzzm_intro
 from algorithms.fuzzm.model import FuzzmddMultiStreamHandler
 from algorithms.fuzzm.model import FuzzmdaMultiStreamHandler
+from algorithms.ns_gbdt.intro import nsgbdt_intro
+from algorithms.ns_gbdt.model import N_S_GBDTMultiStreamHandler
 
 # page config
 st.set_page_config(page_title='Machine Learning for Multiple Data Streams',
@@ -30,8 +32,8 @@ subtitle, buttons = st.columns(2, gap='large')
 subtitle.caption('Handling machine learning problems for multiple data streams'
                  ' with unpredicted concept drifts.')
 button_placeholders = buttons.columns(9)
-button_run = button_placeholders[-2].button('Run')
-button_reset = button_placeholders[-1].button('Reset')
+button_run = button_placeholders[-6].button('Run')
+button_reset = button_placeholders[-5].button('Reset')
 if button_reset:
     st.session_state.flag = False
 if button_run:
@@ -54,6 +56,7 @@ with placeholder.container():
             'all')
     if dataset == 'Upload your own dataset':
         col_data1.file_uploader('CSV support only', type='csv')
+        # TODO: deal with the uploaded file
     else:
         df = load_example(dataset)
         col_data1.dataframe(df)
@@ -73,36 +76,19 @@ with placeholder.container():
             ax.plot(vals1[i, :], '.')
             fig.subplots_adjust(top=1, bottom=0, left=0, right=1.6, hspace=0.3)
             vis_tabs[i].pyplot(fig)
-        # vals = load_visdata(dataset, True)
-        # m, n, _ = vals.shape
-        # vals1 = vals[:, :int(n*vis_percent/100), :]
-        # vis_tabs = \
-        #     col_data2.tabs(['Stream #{}'.format(i+1) for i in range(m)])
-        # for i in range(m):
-        #     fig = plt.figure()
-        #     ax = fig.add_subplot(1, 1, 1, projection='3d')
-        #     ax.set_title('Visualization on Stream #{}'.format(i+1))
-        #     ax.set_xlabel('Time')
-        #     ax.set_ylabel('Value')
-        #     ax.plot(np.arange(vals1.shape[1]),
-        #             vals1[i, :, 0],
-        #             vals1[i, :, 1],
-        #             '.')
-        #     fig.subplots_adjust(top=1, bottom=0, left=0, right=1.6,
-        #                         hspace=0.3)
-        #     vis_tabs[i].pyplot(fig)
     # ========== algorithms ==========
     col_algo1, col_algo2 = tab_algo.columns(2)
     method = col_algo1.selectbox('Select algorithms:',
                                  ('FuzzMDD + FuzzMDA',
-                                  'TBC'))
-    eval_method = col_algo2.selectbox('Evaluate the performance via:',
-                                      ('Mean squared error (MSE)',
-                                       'Mean absolute error (MAE)',
-                                       'Root mean squared error (RMSE)'))
+                                  'NS_GBDT'))
+    eval_method = col_algo2.selectbox('Evaluation metric:',
+                                      ('Mean squared error (MSE)'))
     if method == 'FuzzMDD + FuzzMDA':
-        training_size, batch_size, base_learner = \
+        training_size, batch_size, base_learner, isMulti = \
                 fuzzm_intro(col_algo1, col_algo2)
+    elif method == 'NS_GBDT':
+        training_size, batch_size, max_iter, sample_rate, \
+            learn_rate, max_depth, isMulti = nsgbdt_intro(col_algo1, col_algo2)
 
 #######################################
 #            after running            #
@@ -125,8 +111,11 @@ if st.session_state.flag:
                     m, copy(DecisionTreeRegressor()))
             method2 = FuzzmdaMultiStreamHandler(
                     m, copy(DecisionTreeRegressor()))
+        elif method == 'N_S_GBDT':
+            method1 = N_S_GBDTMultiStreamHandler(m)
         method1.fit(x_train, y_train)
-        method2.fit(x_train, y_train)
+        if isMulti:
+            method2.fit(x_train, y_train)
         # ========== simulation starts ==========
         bar = st.progress(0)
         if streams_selection == 'all':
@@ -186,7 +175,8 @@ if st.session_state.flag:
                 results_avg[1, :, i] = \
                         (results_avg[1, :, i-1]*i + results[1, :, i]) / (i + 1)
             results_drift[0, dlist1, i] = results[1, dlist1, i]
-            results[2, :, i], dlist2 = method2.score(x, y)
+            if isMulti:
+                results[2, :, i], dlist2 = method2.score(x, y)
             if i == 0:
                 results_avg[2, :, 0] = results[2, :, 0]
             else:
@@ -219,10 +209,11 @@ if st.session_state.flag:
                          results[1, stream_j, i_left:i+1],
                          color='#00aa3c',
                          label='adaptation w/o correlations')
-                ax1.plot(timestamp[i_left:i+1],
-                         results[2, stream_j, i_left:i+1],
-                         color='#ff4841',
-                         label='adaptation with correlations')
+                if isMulti:
+                    ax1.plot(timestamp[i_left:i+1],
+                             results[2, stream_j, i_left:i+1],
+                             color='#ff4841',
+                             label='adaptation with correlations')
                 ax1.plot(timestamp[i_left:i+1],
                          results_avg[0, stream_j, i_left:i+1],
                          ':',

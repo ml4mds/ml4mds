@@ -13,7 +13,7 @@ class WeatherStreams:
 
     def __init__(self):
         """__init__ for Weather."""
-        df = pd.read_csv('datasets/weather/weather.csv')
+        df = pd.read_csv('datasets/weather/data.csv')
         ser_label = df.pop('w10m_obs')
         self.x = np.zeros((49728, 10, 8))
         self.y = np.zeros((49728, 10))
